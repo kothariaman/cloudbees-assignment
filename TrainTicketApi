@@ -1,0 +1,104 @@
+import java.util.HashMap;
+import java.util.Map;
+
+public class TrainTicketApi {
+
+    private final Map<String, Map<String, Object>> users = new HashMap<>();
+    private final Map<String, String> seatAllocations = new HashMap<>();
+
+    // POST /train/purchaseTicket: Purchase a train ticket and get a receipt.
+    public Map<String, Object> purchaseTicket(Map<String, Object> requestData) {
+        String from = "London";
+        String to = "France";
+        String email = requestData.get("email").toString();
+        String firstName = requestData.get("firstName").toString();
+        String lastName = requestData.get("lastName").toString();
+        double pricePaid = 20.0;
+
+        String section = seatAllocations.size() % 2 == 0 ? "A" : "B";
+        int seatNumber = seatAllocations.size() / 2 + 1;
+
+        String seat = section + "-" + seatNumber;
+
+        Map<String, Object> user = new HashMap<>();
+        user.put("firstName", firstName);
+        user.put("lastName", lastName);
+        user.put("email", email);
+
+        Map<String, Object> receipt = new HashMap<>();
+        receipt.put("from", from);
+        receipt.put("to", to);
+        receipt.put("user", user);
+        receipt.put("pricePaid", pricePaid);
+
+        users.put(email, receipt);
+        seatAllocations.put(email, seat);
+
+        return receipt;
+    }
+
+    // GET /train/viewUsers/{section}: View users and their seats in a specific section.
+    public ResponseEntity<Map<String, Object>> viewUsers(String section) {
+        if (!section.equals("A") && !section.equals("B")) {
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("section", section);
+        response.put("users", getUsersInSection(section));
+
+        return response // HttpStatus.OK;
+    }
+
+    // DELETE /train/removeUser/{email}: Remove a user from the train.
+    public String removeUser(String email) {
+        if (!users.containsKey(email)) {
+            return "User not found";
+        }
+
+        String section = seatAllocations.get(email);
+        seatAllocations.remove(email);
+        users.remove(email);
+
+        updateSeatNumbers(section);
+
+        return "User removed successfully"; // HttpStatus.OK
+    }
+
+    // PUT /train/modifySeat/{email}: Modify a user's seat.
+    public String modifySeat(String email, Map<String, Object> requestData) {
+        if (!users.containsKey(email)) {
+            return "User not found"; // HttpStatus.NOT_FOUND
+        }
+
+        String newSeat = requestData.get("newSeat").toString();
+        String section = newSeat.split("-")[0];
+
+        if (seatAllocations.containsKey(email) && seatAllocations.containsValue(newSeat)) {
+            return "Seat already occupied"; // HttpStatus.BAD_REQUEST)
+        }
+
+        seatAllocations.put(email, newSeat);
+
+        return "Seat modified successfully"; // HttpStatus.OK
+    }
+
+    private void updateSeatNumbers(String section) {
+        int seatNumber = 1;
+        for (String email : seatAllocations.keySet()) {
+            if (seatAllocations.get(email).startsWith(section)) {
+                seatAllocations.put(email, section + "-" + seatNumber++);
+            }
+        }
+    }
+
+    private Map<String, Object> getUsersInSection(String section) {
+        Map<String, Object> usersInSection = new HashMap<>();
+        for (String email : seatAllocations.keySet()) {
+            if (seatAllocations.get(email).startsWith(section)) {
+                usersInSection.put(email, users.get(email));
+            }
+        }
+        return usersInSection;
+    }
+}
